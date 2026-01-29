@@ -1,0 +1,450 @@
+Project Kickoff Meeting Transcript
+Task Management Platform - Full Stack Development
+
+Date: January 29, 2026
+Attendees: Sarah (Project Manager), Alex (Full Stack Developer)
+Duration: 45 minutes
+
+Sarah: Hey Alex, thanks for joining. So we're starting this task management platform from scratch. The project directory is completely empty right now. I want to walk through all 10 features we need to build. Ready?
+
+Alex: Absolutely. Let me grab my notes. So we're doing separate backend and frontend folders, right?
+
+Sarah: Exactly. Two separate folders. Let's start from the very beginning.
+
+Step 1: Project Foundation
+Sarah: First things first - we need the basic project structure. What's your approach here?
+
+Alex: Right, so I'll create two main directories: /backend for our Python FastAPI application and /frontend for React with TypeScript. For the backend, I'm thinking FastAPI, uvicorn for the server, pydantic for data validation, and python-dotenv for environment variables.
+
+Sarah: And frontend stack?
+
+Alex: React 18 with TypeScript, Vite as the build tool - it's much faster than webpack - and Tailwind CSS for styling. I'll also set up a docker-compose file so we can run everything containerized from day one.
+
+Sarah: Perfect. What about the initial application structure?
+
+Alex: In the backend, I'll create a main.py with a basic FastAPI app and a health check endpoint - just a simple GET /health that returns status 200. Frontend will have a basic App.tsx with a "Hello World" component. Both will have hot-reload configured so we can see changes immediately during development.
+
+Sarah: Don't forget the .gitignore files.
+
+Alex: Of course. Python .gitignore for __pycache__, .env, virtual environments. Node.js one for node_modules, .env, build artifacts. I'll also add a README with setup instructions.
+
+Sarah: Great. How long for this step?
+
+Alex: Half a day. It's mostly boilerplate but needs to be solid.
+
+Step 2: Database Layer
+Sarah: Okay, once that's running, we need database connectivity. Users need to persist somewhere.
+
+Alex: Right. I'll add PostgreSQL as a service in docker-compose on port 5432. For the ORM, SQLAlchemy with async support - using asyncpg as the driver. Much better performance than sync operations.
+
+Sarah: What about migrations? We can't be creating tables manually.
+
+Alex: Alembic for migrations. I'll initialize it and create our first migration for the users table. The schema will have id, email, username, hashed_password, created_at, and updated_at timestamps.
+
+Sarah: Where does all this code go?
+
+Alex: I'll create a /backend/database directory. Three files: connection.py for the async SQLAlchemy engine with connection pooling, base.py for the declarative base class, and session.py for the FastAPI dependency injection - so every route can get a database session easily.
+
+Sarah: And environment variables?
+
+Alex: I'll add DATABASE_URL to a .env.example file with a template. The actual .env won't be committed. Format will be like postgresql+asyncpg://user:password@postgres:5432/taskdb.
+
+Sarah: Test it before moving on.
+
+Alex: Definitely. I'll add a startup event in main.py that attempts a database connection and logs success or failure.
+
+Step 3: Authentication System
+Sarah: Now the critical part - we need users to be able to register and login securely. This is non-negotiable on security.
+
+Alex: Understood. JWT-based authentication. I'll add python-jose for JWT handling, passlib with bcrypt for password hashing, and python-multipart for form data.
+
+Sarah: Walk me through the auth flow.
+
+Alex: Sure. User hits POST /auth/register with email, username, and password. We hash the password with bcrypt - never store plain text - create the user record, and return a success message. For login, they POST to /auth/login with credentials. We verify the password hash, and if valid, generate a JWT token with their user ID and expiration time.
+
+Sarah: What's the token lifetime?
+
+Alex: I'm thinking 24 hours for access tokens. We can add refresh tokens later if needed. The token gets sent in subsequent requests via the Authorization header as a Bearer token.
+
+Sarah: How do we protect routes?
+
+Alex: I'll create a dependency function called get_current_user() that validates the JWT token, extracts the user ID, queries the database, and returns the user object. Any protected route just adds this as a dependency, and FastAPI handles the rest.
+
+Sarah: Where does this code live?
+
+Alex: New directory /backend/auth with security.py for password and JWT functions, schemas.py for Pydantic models like UserCreate, UserLogin, Token, and TokenData. The user model goes in /backend/models/user.py. API endpoints go in /backend/api/auth.py.
+
+Sarah: Don't forget CORS.
+
+Alex: Right, I'll add CORS middleware so the frontend running on port 5173 can talk to the backend on port 8000. We'll restrict origins in production.
+
+Sarah: And the frontend side?
+
+Alex: I'll create /frontend/src/services/auth.ts with functions for login, register, and token management. Tokens get stored in localStorage - though we should consider httpOnly cookies for better security later. I'll also implement automatic token attachment to all API requests using axios interceptors.
+
+Step 4: Frontend Authentication UI
+Sarah: Users need actual forms to interact with. What's the UI plan?
+
+Alex: I'll add react-router-dom for routing, axios for HTTP requests, react-hook-form for form handling, and zod for validation schemas.
+
+Sarah: Show me the structure.
+
+Alex: First, I'll create an AuthContext in /frontend/src/contexts/AuthContext.tsx that manages global auth state - is the user logged in, their profile data, login/logout functions. This wraps the whole app.
+
+Sarah: What pages do we need?
+
+Alex: Three main pages: Login at /login, Register at /register, and Dashboard at /dashboard. The home route / redirects based on auth status - logged in users go to dashboard, others to login.
+
+Sarah: How do you protect the dashboard?
+
+Alex: I'll create a ProtectedRoute component that checks if the user is authenticated. If not, it redirects to login. If yes, it renders the requested page. All protected pages wrap in this component.
+
+Sarah: Form validation?
+
+Alex: Zod schemas. For registration: email must be valid format, username minimum 3 characters, password minimum 8 characters with at least one number. react-hook-form integrates with zod perfectly - real-time validation with helpful error messages.
+
+Sarah: What about token refresh?
+
+Alex: I'll add logic in the axios interceptor to check token expiration. If a request fails with 401, we clear the token and redirect to login. We can enhance this with refresh tokens in the future.
+
+Sarah: Styling?
+
+Alex: Tailwind CSS. Modern, clean forms with proper spacing, focus states, error message styling. I'll follow standard UX patterns - clear labels, visible error states, disabled submit buttons during loading.
+
+Sarah: Custom hook?
+
+Alex: Yes, /frontend/src/hooks/useAuth.ts - wraps the AuthContext so any component can easily access user, login(), logout(), isAuthenticated, etc.
+
+Step 5: Core Business Logic - Tasks API
+Sarah: Alright, now we get to the actual product features. Users need to manage tasks. Full CRUD operations.
+
+Alex: Got it. I'll create a Task model in /backend/models/task.py. Fields will be: id, title, description, status - probably an enum like TODO, IN_PROGRESS, DONE - priority as LOW, MEDIUM, HIGH, user_id as foreign key, due_date, created_at, updated_at.
+
+Sarah: What endpoints do we need?
+
+Alex: Five main ones in /backend/api/tasks.py:
+
+GET /tasks - list all tasks for the current user with pagination
+
+POST /tasks - create a new task
+
+GET /tasks/{task_id} - get a specific task
+
+PUT /tasks/{task_id} - update a task
+
+DELETE /tasks/{task_id} - delete a task
+
+Sarah: Tell me about the GET list endpoint. We'll have users with hundreds of tasks.
+
+Alex: Pagination for sure. Query parameters: limit defaults to 50, offset for pagination. I'll also add filtering - status to filter by TODO, IN_PROGRESS, or DONE, priority to filter by priority level, and search for text search in title and description.
+
+Sarah: Sorting?
+
+Alex: Default sort by created_at descending - newest first. But I'll add a sort_by parameter supporting created_at, due_date, and priority.
+
+Sarah: Security is crucial here.
+
+Alex: Absolutely. Every endpoint requires authentication - they all use the get_current_user() dependency. Critically, users can ONLY access their own tasks. When creating a task, we set user_id from the authenticated user, not from the request body. For get, update, and delete operations, we filter by both task_id AND user_id.
+
+Sarah: What if they try to access someone else's task?
+
+Alex: 404 Not Found. We don't reveal whether the task exists at all - better security through obscurity.
+
+Sarah: Pydantic schemas?
+
+Alex: In /backend/schemas/task.py. TaskCreate for POST requests - title, description, status, priority, due_date. TaskUpdate for PUT - all fields optional so they can partial update. TaskResponse for responses - includes id, all task fields, and timestamps.
+
+Sarah: Database migration?
+
+Alex: Yes, new Alembic migration for the tasks table with proper foreign key constraint to users, indexes on user_id and status for query performance.
+
+Sarah: Error handling?
+
+Alex: Proper HTTP status codes. 200 for success, 201 for created, 404 for not found, 400 for validation errors, 401 for unauthenticated, 403 for forbidden. Each error returns a JSON body with a clear message.
+
+Step 6: Task Management UI
+Sarah: Now bring this to life in the frontend. Users need to see and interact with their tasks.
+
+Alex: I'll use React Query - it's perfect for this. Handles caching, refetching, loading states, and error states automatically.
+
+Sarah: What's the file structure?
+
+Alex: First, /frontend/src/services/tasks.ts with API functions - getTasks, createTask, updateTask, deleteTask. These are just axios calls to our backend endpoints. Then I'll set up the React Query provider in main.tsx - wraps the app so any component can use queries.
+
+Sarah: Main dashboard layout?
+
+Alex: /frontend/src/pages/Dashboard.tsx is the container. It uses the useQuery hook to fetch tasks. While loading, show skeleton loaders. If error, show error message. When data arrives, render the task list.
+
+Sarah: How do you display individual tasks?
+
+Alex: Component called TaskCard.tsx. Shows title, description, status badge with color coding - green for done, yellow for in progress, red for todo. Also priority indicator, due date, and action buttons for edit and delete.
+
+Sarah: Creating and editing tasks?
+
+Alex: Modal form - TaskForm.tsx. Accepts mode prop - 'create' or 'edit'. Form fields for title, description, status dropdown, priority dropdown, and date picker for due date. Uses react-hook-form with zod validation.
+
+Sarah: What about filtering?
+
+Alex: Separate component TaskFilters.tsx. Dropdowns for status and priority, search input for text search, and clear filters button. These update query parameters, and the main query refetches with new filters.
+
+Sarah: You mentioned optimistic updates?
+
+Alex: Yes, React Query mutations. When a user marks a task as complete, we immediately update the UI before the API responds. If the API call fails, React Query automatically rolls back. Makes the app feel instant.
+
+Sarah: Loading and error states?
+
+Alex: React Query provides isLoading, isError, error states. I'll use react-hot-toast for notifications - success toasts for "Task created", "Task updated", error toasts if something fails.
+
+Sarah: TypeScript interfaces?
+
+Alex: /frontend/src/types/task.ts with interfaces matching our backend schemas - Task, TaskCreate, TaskUpdate. Ensures type safety across the frontend.
+
+Sarah: Any advanced UI features?
+
+Alex: I can add drag-and-drop using dnd-kit. Users drag a task card between status columns to change status. Feels very modern and intuitive.
+
+Sarah: Styling?
+
+Alex: Tailwind with a card-based layout. Task cards have subtle shadows, hover effects, responsive grid - three columns on desktop, one on mobile.
+
+Step 7: Real-time Collaboration
+Sarah: Here's a key differentiator - real-time updates. If I'm collaborating with someone, I should see their changes immediately.
+
+Alex: WebSockets. This is where it gets interesting.
+
+Sarah: Walk me through the backend implementation.
+
+Alex: I'll create /backend/websocket/manager.py with a ConnectionManager class. This maintains a dictionary of active connections - maps user_id to their WebSocket connection. When a user connects, we add them. When they disconnect, we remove them.
+
+Sarah: What about authentication for WebSocket connections?
+
+Alex: The WebSocket handshake includes the JWT token as a query parameter. We validate it before accepting the connection. Invalid token? Connection refused.
+
+Sarah: How do we notify users of changes?
+
+Alex: In /backend/websocket/events.py, I'll define event types - TASK_CREATED, TASK_UPDATED, TASK_DELETED. Each event is a JSON payload with the event type and task data.
+
+Sarah: When do these events fire?
+
+Alex: I'll modify the task CRUD endpoints. After successfully creating a task, we broadcast a TASK_CREATED event to all connected users. After updating, broadcast TASK_UPDATED. After deleting, broadcast TASK_DELETED.
+
+Sarah: But users should only see their own task updates, right?
+
+Alex: Exactly. The ConnectionManager broadcasts to specific users, not everyone. When user A updates their task, we only send the event to user A's connections - they might be logged in on multiple devices.
+
+Sarah: WebSocket endpoint?
+
+Alex: ws://localhost:8000/ws/{user_id} - WebSocket route in main.py. Users connect with their user_id in the path and token in query params.
+
+Sarah: Now the frontend side.
+
+Alex: I'll create /frontend/src/services/websocket.ts with a WebSocket client class. It manages the connection lifecycle - connect, disconnect, send messages, receive messages.
+
+Sarah: Connection reliability?
+
+Alex: Automatic reconnection with exponential backoff. If the connection drops, we retry after 1 second, then 2 seconds, then 4, up to a maximum of 30 seconds. Once reconnected, we sync the task list.
+
+Sarah: How do components use this?
+
+Alex: Custom hook /frontend/src/hooks/useWebSocket.ts. It establishes the connection when the component mounts, listens for events, and cleans up on unmount. The TaskList component uses this hook and updates its local state when events arrive.
+
+Sarah: User experience?
+
+Alex: Connection status indicator in the UI - green dot for connected, yellow for connecting, red for disconnected. When a real-time update arrives, show a toast notification like "Task updated" with an option to refresh.
+
+Sarah: What if they're offline?
+
+Alex: The app still works. All mutations use React Query which has retry logic. WebSocket is just for real-time updates. If they're offline, they won't see real-time changes but their own actions still work and sync when back online.
+
+Step 8: Performance & Rate Limiting
+Sarah: As we scale, performance becomes critical. We can't hit the database for every request.
+
+Alex: Redis caching layer. I'll add Redis as a service in docker-compose on port 6379.
+
+Sarah: What gets cached?
+
+Alex: GET /tasks endpoint. When a user fetches their tasks, we cache the result in Redis with a 5-minute TTL. Next request for the same user? Served from cache instantly - no database query.
+
+Sarah: Cache invalidation?
+
+Alex: The hard part, right? When a user creates, updates, or deletes a task, we invalidate their task list cache. This ensures they always see up-to-date data.
+
+Sarah: Implementation details?
+
+Alex: Backend dependencies: redis, aioredis. I'll create /backend/cache/redis.py with Redis connection setup and helper functions like get_cache(), set_cache(), delete_cache().
+
+Sarah: How do you integrate it with endpoints?
+
+Alex: I'll create a caching decorator. The GET tasks endpoint checks Redis first. Cache hit? Return immediately. Cache miss? Query database, store in Redis, return result.
+
+Sarah: Cache key strategy?
+
+Alex: File /backend/cache/keys.py with key generation functions. Format like tasks:user:{user_id}:filters:{status}:{priority}. This way different filter combinations have separate cache entries.
+
+Sarah: Now rate limiting. We can't let someone hammer our API.
+
+Alex: I'll use slowapi - it's specifically designed for FastAPI. Create /backend/middleware/rate_limit.py with rate limiting middleware.
+
+Sarah: What limits are we setting?
+
+Alex: Two tiers. Authenticated users: 100 requests per minute. Unauthenticated users - just hitting login/register endpoints: 20 requests per minute.
+
+Sarah: How does it work?
+
+Alex: It tracks requests by user ID for authenticated requests, by IP address for unauthenticated. Uses Redis to store counters with 1-minute expiration. When the limit is exceeded, return 429 Too Many Requests with a Retry-After header.
+
+Sarah: User sessions?
+
+Alex: We can cache user session data in Redis too. After authenticating, store the user object in Redis. When validating tokens, check Redis first before querying the database. Much faster.
+
+Sarah: Health checks?
+
+Alex: I'll add a GET /health/redis endpoint that pings Redis and returns its status. Useful for monitoring.
+
+Sarah: Connection pooling?
+
+Alex: Redis connection pool configured with minimum 5 connections, maximum 20. Prevents connection exhaustion under high load.
+
+Step 9: Background Jobs
+Sarah: Some operations shouldn't block the request-response cycle. Email notifications, for example.
+
+Alex: Celery for background jobs. It's the standard for Python async task processing.
+
+Sarah: Architecture?
+
+Alex: We'll have the main FastAPI app, a separate Celery worker process, and Celery Beat for scheduled tasks. All communicate through Redis as the message broker.
+
+Sarah: Docker setup?
+
+Alex: Three new services in docker-compose: celery-worker runs the worker process, celery-beat runs the scheduler, and flower gives us a monitoring UI on port 5555.
+
+Sarah: What tasks do we need?
+
+Alex: In /backend/tasks/email_tasks.py, I'll create send_task_reminder_email(task_id) - sends an email when a task is assigned or due soon. Also send_due_date_notification(user_id) - notifies users of upcoming due dates.
+
+Sarah: When do these trigger?
+
+Alex: When a task is created with a due date, we queue an email job. The Celery worker picks it up and sends the email asynchronously. The API response returns immediately without waiting.
+
+Sarah: What about scheduled tasks?
+
+Alex: In /backend/tasks/scheduled_tasks.py, I'll create check_overdue_tasks() - runs every hour, finds tasks past their due date, and sends notifications. Also cleanup_old_tasks() - runs daily at midnight, archives or deletes completed tasks older than 90 days.
+
+Sarah: Email sending?
+
+Alex: /backend/services/email.py with email logic. We can use SMTP for development, SendGrid or AWS SES for production. Email templates in /backend/templates/emails/ - HTML templates for task reminders, welcome emails, etc.
+
+Sarah: How do we monitor these jobs?
+
+Alex: Flower web UI shows active workers, task history, success/failure rates. I'll also add a GET /jobs/status endpoint that returns queue depth and worker status.
+
+Sarah: Result storage?
+
+Alex: Celery result backend using Redis. When a task completes, we can retrieve its result or check if it succeeded/failed. Useful for debugging.
+
+Sarah: Error handling?
+
+Alex: Task retry logic. If an email fails to send - network issue, SMTP down - Celery automatically retries with exponential backoff. After 3 attempts, mark as failed and alert ops.
+
+Step 10: Testing & Deployment
+Sarah: Final step - we need this production-ready. Tests, logging, CI/CD.
+
+Alex: Let's start with backend testing. I'll add pytest, pytest-asyncio for async test support, pytest-cov for coverage reporting, and httpx as the test client for FastAPI.
+
+Sarah: Test structure?
+
+Alex: /backend/tests/conftest.py with fixtures. Main fixtures: test database - separate from production, spins up fresh for each test. Also fixtures for authenticated clients, sample users, sample tasks.
+
+Sarah: What tests specifically?
+
+Alex: /backend/tests/test_auth.py - test registration with valid data, registration with duplicate email, login with valid credentials, login with wrong password, accessing protected routes without token, accessing protected routes with invalid token.
+
+Sarah: Task tests?
+
+Alex: /backend/tests/test_tasks.py - create task, get task list, filter tasks by status, update task, delete task, try to access another user's task (should fail), pagination works correctly.
+
+Sarah: Coverage target?
+
+Alex: Minimum 80%. pytest-cov will generate an HTML report showing exactly what's tested and what's not.
+
+Sarah: Frontend testing?
+
+Alex: Vitest - it's much faster than Jest with Vite. Plus React Testing Library and jest-dom for DOM assertions.
+
+Sarah: Frontend test cases?
+
+Alex: /frontend/src/tests/Auth.test.tsx - render login form, submit with valid credentials, show error on invalid credentials, redirect after successful login, protected route redirects when not logged in.
+
+Sarah: Task UI tests?
+
+Alex: /frontend/src/tests/TaskList.test.tsx - render loading state, render task list, filter by status, click edit opens modal, delete shows confirmation, create task adds to list.
+
+Sarah: Now logging. We need to troubleshoot production issues.
+
+Alex: Structured logging with structlog. Much better than print statements.
+
+Sarah: What information do we log?
+
+Alex: In /backend/logging/config.py, I'll configure log levels - INFO for production, DEBUG for development. Log format includes timestamp, log level, logger name, message, and context data.
+
+Sarah: Request logging?
+
+Alex: Middleware that logs every request - method, path, status code, response time, user ID if authenticated. Also log response times to track slow endpoints.
+
+Sarah: Error logging?
+
+Alex: All exceptions get logged with full stack traces. Include request data - headers, body - but sanitize sensitive fields like passwords.
+
+Sarah: CI/CD pipeline?
+
+Alex: GitHub Actions. I'll create .github/workflows/ci.yml that runs on every pull request.
+
+Sarah: What jobs?
+
+Alex: Three jobs: Lint job runs black for Python formatting, flake8 for linting, eslint for frontend. Test job runs backend tests and frontend tests, uploads coverage reports. Build job builds Docker images for backend and frontend.
+
+Sarah: Deployment workflow?
+
+Alex: Separate file .github/workflows/deploy.yml that triggers on pushes to main branch. Builds production Docker images, pushes to container registry - Docker Hub or AWS ECR - then deploys to our cloud platform.
+
+Sarah: Speaking of deployment, Docker images?
+
+Alex: Multi-stage builds. Backend Dockerfile: first stage installs dependencies and builds, second stage is slim runtime image - only Python, dependencies, and our code. Frontend similar: build stage with Node, production stage with nginx serving static files.
+
+Sarah: Kubernetes?
+
+Alex: I'll create a /kubernetes directory with deployment manifests - deployments for backend, frontend, workers, services for networking, ConfigMaps for config, Secrets for sensitive data, and an ingress for routing. Optional based on our hosting choice.
+
+Sarah: Database migrations in CI/CD?
+
+Alex: Deployment workflow runs alembic upgrade head before starting new backend containers. Ensures database schema is always up to date.
+
+Sarah: Rollback strategy?
+
+Alex: Each deploy tags Docker images with git commit SHA. If something breaks, we can quickly deploy a previous tag. Kubernetes makes this a one-command operation.
+
+Sarah: Environment configuration?
+
+Alex: Environment variables for everything - database URLs, Redis URLs, JWT secrets, API keys. Different values for dev, staging, production. Never hardcoded.
+
+Sarah: Health checks?
+
+Alex: Kubernetes liveness and readiness probes hit our /health endpoints. If a pod becomes unhealthy, Kubernetes automatically restarts it.
+
+Sarah: This is comprehensive. Let me recap the 10 steps: project setup, database layer, authentication, auth UI, tasks API, tasks UI, real-time WebSockets, caching and rate limiting, background jobs, and testing with deployment.
+
+Alex: That's right. Each step builds on the previous one. By the end, we have a production-ready, scalable task management platform.
+
+Sarah: Timeline estimate?
+
+Alex: With focused work, about 3-4 weeks. Steps 1-4 are foundation - one week. Steps 5-6 are core features - one week. Steps 7-9 are advanced features - one week. Step 10 is polish and deployment - a few days plus ongoing refinement.
+
+Sarah: Perfect. Let's get started. I'll create the project board and you start with step 1.
+
+Alex: On it. I'll have the basic structure up by end of day.
+
+Sarah: Great meeting. Thanks, Alex.
+
+Alex: Thank you. This is going to be a solid system.
+
+END OF TRANSCRIPT
