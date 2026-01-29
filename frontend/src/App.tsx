@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { healthCheck } from "./services/api";
+import { healthCheck } from "./api";
 
 type ApiState =
   | { state: "loading" }
@@ -11,11 +11,12 @@ export default function App() {
 
   useEffect(() => {
     healthCheck()
-      .then((d) => setApiState({ state: "ok", service: d.service }))
-      .catch((e) =>
-        setApiState({ state: "error", message: e?.message ?? "Failed" })
-      );
-  }, []);
+              .then((d: { status: string; service: string }) =>
+                setApiState({ state: "ok", service: d.service })
+              )
+              .catch((e: Error) =>
+                setApiState({ state: "error", message: e?.message ?? "Failed" })
+              );  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100">
